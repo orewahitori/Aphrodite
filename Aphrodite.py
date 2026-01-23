@@ -1,10 +1,14 @@
 ﻿import discord
 import os
 
+from discord import app_commands, Interaction
 from dotenv import load_dotenv
-load_dotenv()
 from discord.ext import commands
 
+load_dotenv()
+
+# Channels IDs
+GENERAL_TXT_ID = 829417871653601322
 # Roles IDs
 SOLDIER_ROLE = 1464012394937454744
 SPARTAN_ROLE = 1464011950722908273
@@ -22,48 +26,58 @@ help_text = """
 /help - показать это сообщение
 /rules - показать правила сервера
 """
-# Channels IDs
-GENERAL_TXT_ID = 829417871653601322
 
-intents = discord.Intents.default() # Adding permissions
+class MyBot(discord.Client):
+    def __init__(self):
+        intents = discord.Intents.default() # Adding permissions
+        intents.message_content = True
+        intents.members = True
+        super().__init__(intents=intents)
+        self.tree = app_commands.CommandTree(self)
 
-# Intents from Discord Development Portal
-# https://discord.com/developers/applications/1463994781989601418
-intents.message_content = True
-intents.members = True
+    async def setup_hook(self):
+        await self.tree.sync()
+    async def on_member_join(self, member: discord.Member):
+        channel = member.guild.get_channel(GENERAL_TXT_ID)
+        role = member.guild.get_role(SOLDIER_ROLE)
 
-# Prefixes, used to set the trigger character
-bot = commands.Bot(command_prefix='/', intents=intents, help_command=None) 
+        if channel:
+            await channel.send(f"Привет, {member.mention}!")
+        else:
+            print(f"ERROR: on_member_join - Failed to connect to {channel} channel")
+        if role:
+            await member.add_roles(role)
+        else:
+            print(f"ERROR: on_member_join - Failed to add {role} role to {member}")
 
-def has_role(role_id):
-    async def predicate(ctx):
-        return any(r.id == role_id for r in ctx.author.roles)
-    return commands.check(predicate)
+Aphrodite = MyBot()
 
 # Implement a reacton to commands
-@bot.command()
-async def rules(ctx):
-    await ctx.send("TBD")
-@bot.command()
-async def help(ctx):
-    await ctx.send(help_text)
-@bot.command()
-@has_role(EMPEROR_ROLE)
-async def set_role(ctx, user: discord.Member, given_role: str):
-    role_id = switch_role.get(given_role.lower())
-    if not role_id:
-        await ctx.send("Такой роли не существует")
-        return
-    role = ctx.guild.get_role(role_id)
+@Aphrodite.tree.command(name="rules", description="Отобразить правила сообщества")
+async def rules(interaction: discord.Interaction):
+    await interaction.response.send_message("TBD")
 
-    # Removing previously given roles
-    roles_to_remove = [r for r in user.roles if r.id in switch_role.values()]
-    if roles_to_remove:
-        await user.remove_roles(*roles_to_remove)
+@Aphrodite.tree.command(name="set_role", description="Заменить роли на выданную")
+@app_commands.checks.has_role(EMPEROR_ROLE)
+async def set_role(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    role: discord.Role
+):
+    if role:
+        roles_to_remove = [r for r in member.roles if r != member.guild.default_role]
+        if roles_to_remove:
+            await member.remove_roles(*roles_to_remove)
+    await member.remove_roles()
+    await member.add_roles(role)
+    await interaction.response.send_message(f"✅ {member.mention} теперь с ролью {role.name}",
+                                            ephemeral=True)
 
-    # Adding given role to the member
-    await user.add_roles(role)
-    await ctx.send(f"✅ {user.mention} теперь с ролью {given_role}")
+@Aphrodite.tree.error
+async def on_app_command_error(
+    interaction: discord.Interaction,
+    error: app_commands.errors.CheckFailure
+):
+    await interaction.response.send_message("❌ У вас нет прав использовать эту команду!")
 
-
-bot.run(os.getenv("DISCORD_TOKEN"))
+Aphrodite.run(os.getenv("DISCORD_TOKEN"))
