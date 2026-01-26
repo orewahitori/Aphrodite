@@ -21,22 +21,26 @@ class GuildDataStorage(JsonStorage):
         if guild_name in self.data:
             admin_role = self.data[guild_name]["admin_role"]
             default_role = self.data[guild_name]["default_role"]
+            channel = self.data[guild_name]["channel"]
         else:
             admin_role = []
             default_role = []
-        self.instert_data(guild_name, guild_id, guild_roles, admin_role, default_role)
+            channel = []
+        self.instert_data(guild_name, guild_id, guild_roles, admin_role, default_role, channel)
 
-    def instert_data(self, guild_name, guild_id, guild_roles, admin_role, default_role): # Default case
+    def instert_data(self, guild_name, guild_id, guild_roles, admin_role, default_role, channel): # Default case
         if guild_name in self.data:
             self.data[guild_name]["roles_id"] = guild_roles
             self.data[guild_name]["admin_role"] = admin_role
             self.data[guild_name]["default_role"] = default_role
+            self.data[guild_name]["channel"] = channel
         else:
             self.data[guild_name] = {
                 "id": guild_id,
                 "roles_id": guild_roles,
                 "admin_role": admin_role,
-                "default_role": default_role
+                "default_role": default_role,
+                "channel": channel
             }
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=4, ensure_ascii=False)
@@ -64,3 +68,17 @@ class GuildDataStorage(JsonStorage):
         self.data[guild_name]["admin_role"] = admin_roles
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=4, ensure_ascii=False)
+
+    def set_default_value(self, guild_name, key, channel):
+        current_channel = self.data[guild_name][key]
+        if not current_channel:
+            print(f"ERROR set_default_value, {key} value was not set for {guild_name}!")
+        if current_channel == channel:
+            return False
+        self.data[guild_name][key] = channel
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump(self.data, f, indent=4, ensure_ascii=False)
+        return True
+
+    def get_value(self, guild_name, key):
+        return self.data[guild_name][key]

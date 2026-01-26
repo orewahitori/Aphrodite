@@ -27,14 +27,23 @@ class MyBot(discord.Client):
 
     async def on_guild_join(self, guild: discord.Guild):
         guild_roles = [role.id for role in guild.roles]
-        admin_role = guild.roles[-1]
+        admins = [member.id for member in guild.members
+                  if member.guild_permissions.administrator
+        ]
         default_role = guild.roles[0]
-        self.config_file.instert_data(guild.name, guild.id, guild_roles, admin_role.id, default_role.id)
+        main_channel = guild.system_channel or next(
+            (channel for channel in guild.text_channels  if channel.permissions_for(guild.me).send_messages),
+            None
+        )
+        self.config_file.instert_data(guild.name, guild.id, guild_roles, admins.id,
+                                      default_role.id, main_channel.id)
+        await main_channel.send(f"Привет, {default_role.mention}!")
 
     async def on_member_join(self, member: discord.Member):
-        channel = member.guild.get_channel(GENERAL_TXT_ID)
-        guild_roles = self.config_file.data[member.guild.name]["roles_id"]
-        default_role = self.config_file.data[member.guild.name]["default_role"]
+        channel_id = self.config_file.get_value(member.guild.name, "channel")
+        default_role = self.config_file.get_value(member.guild.name, "default_role")
+
+        channel = member.guild.get_channel(channel_id)
         role = member.guild.get_role(default_role)
 
         if channel:
@@ -82,7 +91,7 @@ async def extend_rights(
             await interaction.response.send_message("Роль уже обладает расширенными правами",
                                                     ephemeral=True)
         else:
-            await interaction.response.send_message("Роли успешно обновлены",
+            await interaction.response.send_message(f"Роль {role.name} получила расширенные права",
                                                 ephemeral=True)
     else:
         await interaction.response.send_message("Недостаточно прав",
@@ -102,7 +111,7 @@ async def take_away_rights(
             await interaction.response.send_message("Роль не обладает расширенными правами",
                                                     ephemeral=True)
         else:
-            await interaction.response.send_message("Роли успешно обновлены",
+            await interaction.response.send_message(f"Роль {role.name} лишилась расширенных прав",
                                                 ephemeral=True)
     else:
         await interaction.response.send_message("Недостаточно прав",
@@ -120,6 +129,46 @@ async def sync_roles(
     if guild.roles[-1].id in user_roles or config_file.is_admin_role(guild.name, user_roles):
         config_file.sync_data(guild.name, guild.id, guild_roles)
         await interaction.response.send_message("Роли успешно обновлены",
+                                                ephemeral=True)
+    else:
+        await interaction.response.send_message("Недостаточно прав",
+                                                ephemeral=True)
+
+@Aphrodite.tree.command(name="set_channel", description="Изменить основной канал бота")
+async def set_channel(
+    interaction: discord.Interaction,
+    channel: discord.TextChannel
+):
+    config_file = Aphrodite.config_file
+    guild = interaction.guild
+    user_roles = [role.id for role in interaction.user.roles]
+
+    if guild.roles[-1].id in user_roles or config_file.is_admin_role(guild.name, user_roles):
+        if config_file.set_default_value(guild.name, "channel", channel.id) == False:
+            await interaction.response.send_message("Канал уже является основным",
+                                                    ephemeral=True)
+        else:
+            await interaction.response.send_message("Канал успешно обновлен",
+                                                ephemeral=True)
+    else:
+        await interaction.response.send_message("Недостаточно прав",
+                                                ephemeral=True)
+
+@Aphrodite.tree.command(name="set_default_role", description="Изменить роль участников по умолчанию")
+async def set_channel(
+    interaction: discord.Interaction,
+    role: discord.Role
+):
+    config_file = Aphrodite.config_file
+    guild = interaction.guild
+    user_roles = [role.id for role in interaction.user.roles]
+
+    if guild.roles[-1].id in user_roles or config_file.is_admin_role(guild.name, user_roles):
+        if config_file.set_default_value(guild.name, "default_role", role.id) == False:
+            await interaction.response.send_message("Роль уже выставлена по умолчанию",
+                                                    ephemeral=True)
+        else:
+            await interaction.response.send_message("Роль по умолчанию успешно обновлена",
                                                 ephemeral=True)
     else:
         await interaction.response.send_message("Недостаточно прав",
