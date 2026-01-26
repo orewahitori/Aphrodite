@@ -6,6 +6,7 @@ import database
 from discord import app_commands, Interaction
 from dotenv import load_dotenv
 from discord.ext import commands
+from functools import wraps
 
 load_dotenv()
 
@@ -54,27 +55,44 @@ class MyBot(discord.Client):
 
 Aphrodite = MyBot()
 
+def admin_only(func):
+    @wraps(func)
+    async def wrapper(interaction: discord.Interaction, *args, **kwargs):
+        guild = interaction.guild.name
+        admin_roles = Aphrodite.config_file.get_value(guild, "admin_role")
+        user_roles = [role.id for role in interaction.user.roles]
+        is_admin = interaction.permissions.administrator
+        print("going through admin_only check now")
+        if any(admin in user_roles for admin in admin_roles) or is_admin:
+            print("pass")
+            return await func(interaction, *args, **kwargs)
+
+        print("fail")
+        return await interaction.response.send_message("❌ У вас нет прав использовать эту команду!",
+                                                       ephemeral=True)
+    return wrapper
+
 # Implement a reacton to commands
 @Aphrodite.tree.command(name="rules", description="Отобразить правила сообщества")
 async def rules(interaction: discord.Interaction):
-    await interaction.response.send_message("TBD")
+    await interaction.response.send_message("TBD!")
 
 @Aphrodite.tree.command(name="set_role", description="Заменить роли на выданную")
+@admin_only
 async def set_role(
     interaction: discord.Interaction,
     member: discord.Member,
     role: discord.Role
 ):
-    if role:
-        roles_to_remove = [r for r in member.roles if r != member.guild.default_role]
-        if roles_to_remove:
-            await member.remove_roles(*roles_to_remove)
-    await member.remove_roles()
+    roles_to_remove = [r for r in member.roles if r != member.guild.default_role]
+    if roles_to_remove:
+        await member.remove_roles(*roles_to_remove)
     await member.add_roles(role)
     await interaction.response.send_message(f"✅ {member.mention} теперь с ролью {role.name}",
                                             ephemeral=True)
 
 @Aphrodite.tree.command(name="extend_rights", description="Выдать роли расширенные права на бота")
+@admin_only
 async def extend_rights(
     interaction: discord.Interaction,
     role: discord.Role
@@ -82,19 +100,15 @@ async def extend_rights(
     config_file = Aphrodite.config_file
     guild = interaction.guild
     user_roles = [role.id for role in interaction.user.roles]
-
-    if guild.roles[-1].id in user_roles or config_file.is_admin_role(guild.name, user_roles):
-        if config_file.add_admin(guild.name, role.id) == False:
-            await interaction.response.send_message("Роль уже обладает расширенными правами",
-                                                    ephemeral=True)
-        else:
-            await interaction.response.send_message(f"Роль {role.name} получила расширенные права",
+    if config_file.add_admin(guild.name, role.id) == False:
+        await interaction.response.send_message("Роль уже обладает расширенными правами",
                                                 ephemeral=True)
     else:
-        await interaction.response.send_message("Недостаточно прав",
+        await interaction.response.send_message(f"Роль {role.name} получила расширенные права",
                                                 ephemeral=True)
 
 @Aphrodite.tree.command(name="take_away_rights", description="Забрать у роли расширенные права на бота")
+@admin_only
 async def take_away_rights(
     interaction: discord.Interaction,
     role: discord.Role
@@ -103,18 +117,15 @@ async def take_away_rights(
     guild = interaction.guild
     user_roles = [role.id for role in interaction.user.roles]
 
-    if guild.roles[-1].id in user_roles or config_file.is_admin_role(guild.name, user_roles):
-        if config_file.remove_admin(guild.name, role.id) == False:
-            await interaction.response.send_message("Роль не обладает расширенными правами",
-                                                    ephemeral=True)
-        else:
-            await interaction.response.send_message(f"Роль {role.name} лишилась расширенных прав",
+    if config_file.remove_admin(guild.name, role.id) == False:
+        await interaction.response.send_message("Роль не обладает расширенными правами",
                                                 ephemeral=True)
     else:
-        await interaction.response.send_message("Недостаточно прав",
+        await interaction.response.send_message(f"Роль {role.name} лишилась расширенных прав",
                                                 ephemeral=True)
 
 @Aphrodite.tree.command(name="sync_roles", description="Обновить ID ролей на сервере")
+@admin_only
 async def sync_roles(
     interaction: discord.Interaction
 ):
@@ -123,15 +134,12 @@ async def sync_roles(
     guild_roles = [guild_role.id for guild_role in guild.roles]
     user_roles = [role.id for role in interaction.user.roles]
 
-    if guild.roles[-1].id in user_roles or config_file.is_admin_role(guild.name, user_roles):
-        config_file.sync_data(guild.name, guild.id, guild_roles)
-        await interaction.response.send_message("Роли успешно обновлены",
-                                                ephemeral=True)
-    else:
-        await interaction.response.send_message("Недостаточно прав",
-                                                ephemeral=True)
+    config_file.sync_data(guild.name, guild.id, guild_roles)
+    await interaction.response.send_message("Роли успешно обновлены",
+                                            ephemeral=True)
 
 @Aphrodite.tree.command(name="set_channel", description="Изменить основной канал бота")
+@admin_only
 async def set_channel(
     interaction: discord.Interaction,
     channel: discord.TextChannel
@@ -140,18 +148,15 @@ async def set_channel(
     guild = interaction.guild
     user_roles = [role.id for role in interaction.user.roles]
 
-    if guild.roles[-1].id in user_roles or config_file.is_admin_role(guild.name, user_roles):
-        if config_file.set_default_value(guild.name, "channel", channel.id) == False:
-            await interaction.response.send_message("Канал уже является основным",
-                                                    ephemeral=True)
-        else:
-            await interaction.response.send_message("Канал успешно обновлен",
+    if config_file.set_default_value(guild.name, "channel", channel.id) == False:
+        await interaction.response.send_message("Канал уже является основным",
                                                 ephemeral=True)
     else:
-        await interaction.response.send_message("Недостаточно прав",
+        await interaction.response.send_message("Канал успешно обновлен",
                                                 ephemeral=True)
 
 @Aphrodite.tree.command(name="set_default_role", description="Изменить роль участников по умолчанию")
+@admin_only
 async def set_channel(
     interaction: discord.Interaction,
     role: discord.Role
@@ -160,17 +165,13 @@ async def set_channel(
     guild = interaction.guild
     user_roles = [role.id for role in interaction.user.roles]
 
-    if guild.roles[-1].id in user_roles or config_file.is_admin_role(guild.name, user_roles):
-        if config_file.set_default_value(guild.name, "default_role", role.id) == False:
-            await interaction.response.send_message("Роль уже выставлена по умолчанию",
-                                                    ephemeral=True)
-        else:
-            await interaction.response.send_message("Роль по умолчанию успешно обновлена",
+    if config_file.set_default_value(guild.name, "default_role", role.id) == False:
+        await interaction.response.send_message("Роль уже выставлена по умолчанию",
                                                 ephemeral=True)
     else:
-        await interaction.response.send_message("Недостаточно прав",
+        await interaction.response.send_message("Роль по умолчанию успешно обновлена",
                                                 ephemeral=True)
-
+"""
 @Aphrodite.tree.error
 async def on_app_command_error(
     interaction: discord.Interaction,
@@ -179,5 +180,5 @@ async def on_app_command_error(
     print(f"ERROR: {error}")
     await interaction.response.send_message("❌ У вас нет прав использовать эту команду!",
                                             ephemeral=True)
-
+"""
 Aphrodite.run(os.getenv("DISCORD_TOKEN"))
