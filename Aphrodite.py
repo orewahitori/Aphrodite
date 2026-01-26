@@ -9,9 +9,6 @@ from discord.ext import commands
 
 load_dotenv()
 
-# Channels IDs
-GENERAL_TXT_ID = 829417871653601322
-
 class MyBot(discord.Client):
     def __init__(self):
         intents = discord.Intents.default() # Adding permissions
