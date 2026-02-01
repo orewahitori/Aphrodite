@@ -1,4 +1,6 @@
-﻿import discord
+﻿from code import interact
+from re import S
+import discord
 import os
 import json
 import database
@@ -7,6 +9,7 @@ from discord import app_commands, Interaction
 from dotenv import load_dotenv
 from discord.ext import commands
 from functools import wraps
+from enum import Enum, auto
 
 load_dotenv()
 
@@ -33,8 +36,11 @@ class MyBot(discord.Client):
             (channel for channel in guild.text_channels  if channel.permissions_for(guild.me).send_messages),
             None
         )
-        self.config_file.instert_data(guild.name, guild.id, guild_roles, admins.id,
-                                      default_role.id, main_channel.id)
+        commands_list = [0]
+        silent_mode = False
+
+        self.config_file.instert_data(guild.name, guild.id, guild_roles, admins.id, default_role.id,
+                                      main_channel.id, commands_list, silent_mode)
         await main_channel.send(f"Привет, {default_role.mention}!")
 
     async def on_member_join(self, member: discord.Member):
@@ -55,6 +61,17 @@ class MyBot(discord.Client):
 
 Aphrodite = MyBot()
 
+def silent_mode(func):
+    @wraps(func)
+    async def wrapper(interaction: discord.Interaction, *args, **kwargs):
+        guild = interaction.guild.name
+        silent_mode = Aphrodite.config_file.get_value(guild, "silent_mode")
+        if silent_mode:
+            return await interaction.response.send_message("Включен silent mode, обратитесь к администраторам сервера",
+                                                           ephemeral=True)
+        return await func(interaction, *args, **kwargs)
+    return wrapper
+
 def admin_only(func):
     @wraps(func)
     async def wrapper(interaction: discord.Interaction, *args, **kwargs):
@@ -62,18 +79,16 @@ def admin_only(func):
         admin_roles = Aphrodite.config_file.get_value(guild, "admin_role")
         user_roles = [role.id for role in interaction.user.roles]
         is_admin = interaction.permissions.administrator
-        print("going through admin_only check now")
         if any(admin in user_roles for admin in admin_roles) or is_admin:
-            print("pass")
             return await func(interaction, *args, **kwargs)
 
-        print("fail")
         return await interaction.response.send_message("❌ У вас нет прав использовать эту команду!",
                                                        ephemeral=True)
     return wrapper
 
 # Implement a reacton to commands
 @Aphrodite.tree.command(name="rules", description="Отобразить правила сообщества")
+@silent_mode
 async def rules(interaction: discord.Interaction):
     await interaction.response.send_message("TBD!")
 
@@ -98,9 +113,8 @@ async def extend_rights(
     role: discord.Role
 ):
     config_file = Aphrodite.config_file
-    guild = interaction.guild
-    user_roles = [role.id for role in interaction.user.roles]
-    if config_file.add_admin(guild.name, role.id) == False:
+
+    if config_file.add_admin(interaction.guild.name, role.id) == False:
         await interaction.response.send_message("Роль уже обладает расширенными правами",
                                                 ephemeral=True)
     else:
@@ -114,10 +128,8 @@ async def take_away_rights(
     role: discord.Role
 ):
     config_file = Aphrodite.config_file
-    guild = interaction.guild
-    user_roles = [role.id for role in interaction.user.roles]
 
-    if config_file.remove_admin(guild.name, role.id) == False:
+    if config_file.remove_admin(interaction.guild.name, role.id) == False:
         await interaction.response.send_message("Роль не обладает расширенными правами",
                                                 ephemeral=True)
     else:
@@ -132,9 +144,8 @@ async def sync_roles(
     config_file = Aphrodite.config_file
     guild = interaction.guild
     guild_roles = [guild_role.id for guild_role in guild.roles]
-    user_roles = [role.id for role in interaction.user.roles]
 
-    config_file.sync_data(guild.name, guild.id, guild_roles)
+    config_file.sync_data(interaction.guild.name, guild.id, guild_roles)
     await interaction.response.send_message("Роли успешно обновлены",
                                             ephemeral=True)
 
@@ -145,10 +156,8 @@ async def set_channel(
     channel: discord.TextChannel
 ):
     config_file = Aphrodite.config_file
-    guild = interaction.guild
-    user_roles = [role.id for role in interaction.user.roles]
 
-    if config_file.set_default_value(guild.name, "channel", channel.id) == False:
+    if config_file.set_value(interaction.guild.name, "channel", channel.id) == False:
         await interaction.response.send_message("Канал уже является основным",
                                                 ephemeral=True)
     else:
@@ -162,15 +171,44 @@ async def set_channel(
     role: discord.Role
 ):
     config_file = Aphrodite.config_file
-    guild = interaction.guild
-    user_roles = [role.id for role in interaction.user.roles]
 
-    if config_file.set_default_value(guild.name, "default_role", role.id) == False:
+    if config_file.set_value(interaction.guild.name, "default_role", role.id) == False:
         await interaction.response.send_message("Роль уже выставлена по умолчанию",
                                                 ephemeral=True)
     else:
         await interaction.response.send_message("Роль по умолчанию успешно обновлена",
                                                 ephemeral=True)
+
+@Aphrodite.tree.command(name="enable_silent_mode", description="Отключить команды бота")
+@admin_only
+async def enable_silent_mode(
+    interaction: discord.Interaction
+):
+    config_file = Aphrodite.config_file
+    guild = interaction.guild
+
+    if config_file.set_value(interaction.guild.name, "silent_mode", True) == False:
+        await interaction.response.send_message("silent mode уже включен",
+                                                ephemeral=True)
+    else:
+        await interaction.response.send_message("silent mode включен",
+                                                ephemeral=True)
+
+@Aphrodite.tree.command(name="disable_silent_mode", description="Отключить команды бота")
+@admin_only
+async def disable_silent_mode(
+    interaction: discord.Interaction
+):
+    config_file = Aphrodite.config_file
+    guild = interaction.guild
+
+    if config_file.set_value(interaction.guild.name, "silent_mode", False) == False:
+        await interaction.response.send_message("silent mode уже выключен",
+                                                ephemeral=True)
+    else:
+        await interaction.response.send_message("silent mode выключен",
+                                                ephemeral=True)
+
 """
 @Aphrodite.tree.error
 async def on_app_command_error(
