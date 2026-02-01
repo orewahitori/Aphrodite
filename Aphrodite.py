@@ -66,7 +66,8 @@ def silent_mode(func):
     async def wrapper(interaction: discord.Interaction, *args, **kwargs):
         guild = interaction.guild.name
         silent_mode = Aphrodite.config_file.get_value(guild, "silent_mode")
-        if silent_mode:
+        command_list = Aphrodite.config_file.get_value(guild, "command_list")
+        if (command_list and func.__name__ in command_list) or silent_mode:
             return await interaction.response.send_message("Включен silent mode, обратитесь к администраторам сервера",
                                                            ephemeral=True)
         return await func(interaction, *args, **kwargs)
@@ -90,7 +91,8 @@ def admin_only(func):
 @Aphrodite.tree.command(name="rules", description="Отобразить правила сообщества")
 @silent_mode
 async def rules(interaction: discord.Interaction):
-    await interaction.response.send_message("TBD!")
+    await interaction.response.send_message("TBD!",
+                                            ephemeral=True)
 
 @Aphrodite.tree.command(name="set_role", description="Заменить роли на выданную")
 @admin_only
@@ -114,7 +116,7 @@ async def extend_rights(
 ):
     config_file = Aphrodite.config_file
 
-    if config_file.add_admin(interaction.guild.name, role.id) == False:
+    if config_file.add_value(interaction.guild.name, "admin", role.id) == False:
         await interaction.response.send_message("Роль уже обладает расширенными правами",
                                                 ephemeral=True)
     else:
@@ -129,7 +131,7 @@ async def take_away_rights(
 ):
     config_file = Aphrodite.config_file
 
-    if config_file.remove_admin(interaction.guild.name, role.id) == False:
+    if config_file.rem_value(interaction.guild.name, "admin", role.id) == False:
         await interaction.response.send_message("Роль не обладает расширенными правами",
                                                 ephemeral=True)
     else:
@@ -207,6 +209,38 @@ async def disable_silent_mode(
                                                 ephemeral=True)
     else:
         await interaction.response.send_message("silent mode выключен",
+                                                ephemeral=True)
+
+@Aphrodite.tree.command(name="disable_command", description="Отключить отдельную команду")
+@admin_only
+async def disable_command(
+    interaction: discord.Interaction,
+    command: str
+):
+    config_file = Aphrodite.config_file
+    guild = interaction.guild
+
+    if config_file.add_value(interaction.guild.name, "command_list", command) == False:
+        await interaction.response.send_message("Команда уже отключена",
+                                                ephemeral=True)
+    else:
+        await interaction.response.send_message("Команда успешно отключена",
+                                                ephemeral=True)
+
+@Aphrodite.tree.command(name="enable_command", description="Включить отдельную команду")
+@admin_only
+async def enable_command(
+    interaction: discord.Interaction,
+    command: str
+):
+    config_file = Aphrodite.config_file
+    guild = interaction.guild
+
+    if config_file.rem_value(interaction.guild.name, "command_list", command) == False:
+        await interaction.response.send_message("Команда уже включена",
+                                                ephemeral=True)
+    else:
+        await interaction.response.send_message("Команда успешно включена",
                                                 ephemeral=True)
 
 """

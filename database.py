@@ -28,7 +28,7 @@ class GuildDataStorage(JsonStorage):
             admin_role = []
             default_role = []
             channel = []
-            command_list = [0]
+            command_list = []
             silent_mode = False
         self.instert_data(guild_name, guild_id, guild_roles, admin_role,
                           default_role, channel, command_list, silent_mode)
@@ -62,21 +62,21 @@ class GuildDataStorage(JsonStorage):
                 return True
         return False
 
-    def add_admin(self, guild_name, role):
-        admin_roles = self.data[guild_name]["admin_role"]
-        if role in admin_roles:
+    def add_value(self, guild_name, key, value):
+        values = self.data[guild_name][key]
+        if value in values:
             return False
-        admin_roles.append(role)
-        self.data[guild_name]["admin_role"] = admin_roles
+        values.append(value)
+        self.data[guild_name][key] = values
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=4, ensure_ascii=False)
 
-    def remove_admin(self, guild_name, role):
-        admin_roles = self.data[guild_name]["admin_role"]
-        if role not in admin_roles:
+    def rem_value(self, guild_name, key, value):
+        values = self.data[guild_name][key]
+        if value not in values:
             return False
-        admin_roles.remove(role)
-        self.data[guild_name]["admin_role"] = admin_roles
+        values.remove(value)
+        self.data[guild_name][key] = values
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=4, ensure_ascii=False)
 
