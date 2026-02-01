@@ -118,7 +118,7 @@ async def extend_rights(
 ):
     config_file = Aphrodite.config_file
 
-    if config_file.add_value(interaction.guild.name, "admin", role.id) == False:
+    if config_file.add_value(interaction.guild.name, "admin_role", role.id) == False:
         await interaction.response.send_message("Роль уже обладает расширенными правами",
                                                 ephemeral=True)
     else:
@@ -133,7 +133,7 @@ async def take_away_rights(
 ):
     config_file = Aphrodite.config_file
 
-    if config_file.rem_value(interaction.guild.name, "admin", role.id) == False:
+    if config_file.rem_value(interaction.guild.name, "admin_role", role.id) == False:
         await interaction.response.send_message("Роль не обладает расширенными правами",
                                                 ephemeral=True)
     else:
