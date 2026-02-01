@@ -13,6 +13,8 @@ from enum import Enum, auto
 
 load_dotenv()
 
+commands = ["rules"]
+
 class MyBot(discord.Client):
     def __init__(self):
         intents = discord.Intents.default() # Adding permissions
@@ -220,11 +222,15 @@ async def disable_command(
     config_file = Aphrodite.config_file
     guild = interaction.guild
 
-    if config_file.add_value(interaction.guild.name, "command_list", command) == False:
-        await interaction.response.send_message("Команда уже отключена",
-                                                ephemeral=True)
+    if command in commands:
+        if config_file.add_value(interaction.guild.name, "command_list", command) == False:
+            await interaction.response.send_message("Команда уже отключена",
+                                                    ephemeral=True)
+        else:
+            await interaction.response.send_message("Команда успешно отключена",
+                                                    ephemeral=True)
     else:
-        await interaction.response.send_message("Команда успешно отключена",
+        await interaction.response.send_message("Указанной команды не существует",
                                                 ephemeral=True)
 
 @Aphrodite.tree.command(name="enable_command", description="Включить отдельную команду")
@@ -236,12 +242,17 @@ async def enable_command(
     config_file = Aphrodite.config_file
     guild = interaction.guild
 
-    if config_file.rem_value(interaction.guild.name, "command_list", command) == False:
-        await interaction.response.send_message("Команда уже включена",
-                                                ephemeral=True)
+    if command in commands:
+        if config_file.rem_value(interaction.guild.name, "command_list", command) == False:
+            await interaction.response.send_message("Команда уже включена",
+                                                    ephemeral=True)
+        else:
+            await interaction.response.send_message("Команда успешно включена",
+                                                    ephemeral=True)
     else:
-        await interaction.response.send_message("Команда успешно включена",
+        await interaction.response.send_message("Указанной команды не существует",
                                                 ephemeral=True)
+
 
 """
 @Aphrodite.tree.error
