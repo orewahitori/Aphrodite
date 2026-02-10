@@ -38,10 +38,10 @@ class MyBot(discord.Client):
             (channel for channel in guild.text_channels  if channel.permissions_for(guild.me).send_messages),
             None
         )
-        commands_list = [0]
+        commands_list = []
         silent_mode = False
 
-        self.config_file.instert_data(guild.name, guild.id, guild_roles, admins.id, default_role.id,
+        self.config_file.instert_data(guild.name, guild.id, guild_roles, admins, default_role.id,
                                       main_channel.id, commands_list, silent_mode)
         await main_channel.send(f"Привет, {default_role.mention}!")
 
