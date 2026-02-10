@@ -2,6 +2,7 @@
 import os
 import json
 import database
+import random
 
 from discord import app_commands, Interaction
 from dotenv import load_dotenv
@@ -47,6 +48,29 @@ class MyBot(discord.Client):
             print(f"ERROR: on_member_join - Failed to add {role} role to {member}")
 
 Aphrodite = MyBot()
+
+@Aphrodite.tree.command(name="avatar", description="Показать аватар пользователя")
+async def avatar(
+    interaction: discord.Interaction,
+    member: discord.Member
+):
+    if member.avatar!=None:
+        await interaction.response.send_message(member.display_avatar.url)
+    else:
+        await interaction.response.send_message(f"У пользователя {member.name} отсутствует аватар",
+                                                ephemeral=True)
+
+@Aphrodite.tree.command(name="roll", description="Выдать случайное число")
+async def roll(
+    interaction: discord.Interaction,
+    range_value: str
+):
+    try:
+        result = random.randint(1, int(range_value))
+        await interaction.response.send_message(result)
+    except ValueError:
+        await interaction.response.send_message("Введенные данные не являются числом",
+                                                ephemeral=True)
 
 # Implement a reacton to commands
 @Aphrodite.tree.command(name="rules", description="Отобразить правила сообщества")
@@ -125,13 +149,13 @@ async def sync_roles(
         await interaction.response.send_message("Недостаточно прав",
                                                 ephemeral=True)
 
-@Aphrodite.tree.error
+"""@Aphrodite.tree.error
 async def on_app_command_error(
     interaction: discord.Interaction,
     error: app_commands.errors.CheckFailure
 ):
     print(f"ERROR: {error}")
     await interaction.response.send_message("❌ У вас нет прав использовать эту команду!",
-                                            ephemeral=True)
+                                            ephemeral=True)"""
 
 Aphrodite.run(os.getenv("DISCORD_TOKEN"))
