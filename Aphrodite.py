@@ -226,7 +226,7 @@ async def enable_silent_mode(
         await interaction.response.send_message("silent mode включен",
                                                 ephemeral=True)
 
-@Aphrodite.tree.command(name="disable_silent_mode", description="Отключить команды бота")
+@Aphrodite.tree.command(name="disable_silent_mode", description="Включить команды бота")
 @admin_only
 async def disable_silent_mode(
     interaction: discord.Interaction
