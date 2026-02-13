@@ -4,6 +4,8 @@ import discord
 import os
 import json
 import database
+import deepl
+from deepl import deepl_client
 
 from discord import app_commands, Interaction
 from dotenv import load_dotenv
@@ -13,7 +15,9 @@ from enum import Enum, auto
 
 load_dotenv()
 
-commands = ["rules"]
+bot_commands = ["rules"]
+
+deepl_client = deepl.DeepLClient(os.getenv("DEEPL_KEY"))
 
 class MyBot(discord.Client):
     def __init__(self):
@@ -141,7 +145,7 @@ async def take_away_rights(
                                                 ephemeral=True)
 
 @Aphrodite.tree.command(name="sync_roles", description="Обновить ID ролей на сервере")
-@admin_only
+#@admin_only
 async def sync_roles(
     interaction: discord.Interaction
 ):
@@ -222,7 +226,7 @@ async def disable_command(
     config_file = Aphrodite.config_file
     guild = interaction.guild
 
-    if command in commands:
+    if command in bot_commands:
         if config_file.add_value(interaction.guild.name, "command_list", command) == False:
             await interaction.response.send_message("Команда уже отключена",
                                                     ephemeral=True)
@@ -242,7 +246,7 @@ async def enable_command(
     config_file = Aphrodite.config_file
     guild = interaction.guild
 
-    if command in commands:
+    if command in bot_commands:
         if config_file.rem_value(interaction.guild.name, "command_list", command) == False:
             await interaction.response.send_message("Команда уже включена",
                                                     ephemeral=True)
@@ -252,6 +256,19 @@ async def enable_command(
     else:
         await interaction.response.send_message("Указанной команды не существует",
                                                 ephemeral=True)
+
+@Aphrodite.tree.context_menu(name="Translate")
+async def translate_message(
+    interaction: discord.Interaction,
+    message: discord.Message
+):
+    if not message.content:
+        interaction.response.send_message("No message to translate",
+                                          ephemeral=True)
+        return
+
+    translated = deepl_client.translate_text(message.content, target_lang="RU")
+    await interaction.response.send_message(f"{translated}")
 
 
 """
