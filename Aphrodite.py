@@ -286,7 +286,6 @@ async def on_app_command_error(
 ):
     print(f"ERROR: {error}")
     await interaction.response.send_message("❌ У вас нет прав использовать эту команду!",
-<<<<<<< HEAD
                                             ephemeral=True)"""
 
 Aphrodite.run(os.getenv("DISCORD_TOKEN"))
