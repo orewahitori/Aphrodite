@@ -6,6 +6,7 @@ import json
 import database
 import deepl
 from deepl import deepl_client
+import random
 
 from discord import app_commands, Interaction
 from dotenv import load_dotenv
@@ -67,6 +68,28 @@ class MyBot(discord.Client):
 
 Aphrodite = MyBot()
 
+@Aphrodite.tree.command(name="avatar", description="Показать аватар пользователя")
+async def avatar(
+    interaction: discord.Interaction,
+    member: discord.Member
+):
+    if member.avatar!=None:
+        await interaction.response.send_message(member.display_avatar.url)
+    else:
+        await interaction.response.send_message(f"У пользователя {member.name} отсутствует аватар",
+                                                ephemeral=True)
+
+@Aphrodite.tree.command(name="roll", description="Выдать случайное число")
+async def roll(
+    interaction: discord.Interaction,
+    range_value: str
+):
+    try:
+        result = random.randint(1, int(range_value))
+        await interaction.response.send_message(result)
+    except ValueError:
+        await interaction.response.send_message("Введенные данные не являются числом",
+                                                ephemeral=True)
 def silent_mode(func):
     @wraps(func)
     async def wrapper(interaction: discord.Interaction, *args, **kwargs):
@@ -171,6 +194,7 @@ async def set_channel(
     else:
         await interaction.response.send_message("Канал успешно обновлен",
                                                 ephemeral=True)
+
 
 @Aphrodite.tree.command(name="set_default_role", description="Изменить роль участников по умолчанию")
 @admin_only
@@ -279,6 +303,6 @@ async def on_app_command_error(
 ):
     print(f"ERROR: {error}")
     await interaction.response.send_message("❌ У вас нет прав использовать эту команду!",
-                                            ephemeral=True)
-"""
+                                            ephemeral=True)"""
+
 Aphrodite.run(os.getenv("DISCORD_TOKEN"))
