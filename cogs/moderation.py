@@ -14,7 +14,7 @@ class Moderation(commands.Cog):
             guild = interaction.guild.name
             admin_roles = self.bot.config_file.get_value(guild, "admin_role")
             user_roles = [role.id for role in interaction.user.roles]
-            is_admin = interaction.permissions.administrator
+            is_admin = interaction.user.guild_permissions.administrator
             if any(admin in user_roles for admin in admin_roles) or is_admin:
                 return await func(self, interaction, *args, **kwargs)
 

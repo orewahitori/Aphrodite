@@ -43,7 +43,7 @@ class MyBot(commands.Bot):
         commands_list = []
         silent_mode = False
 
-        self.config_file.instert_data(guild.name, guild.id, guild_roles, admins, default_role.id,
+        self.config_file.insert_data(guild.name, guild.id, guild_roles, admins, default_role.id,
                                       main_channel.id, commands_list, silent_mode)
         await main_channel.send(f"Привет, {default_role.mention}!")
 
@@ -72,7 +72,7 @@ async def translate_message(
     message: discord.Message
 ):
     if not message.content:
-        interaction.response.send_message("No message to translate",
+        await interaction.response.send_message("No message to translate",
                                           ephemeral=True)
         return
 
