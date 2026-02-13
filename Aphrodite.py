@@ -1,4 +1,6 @@
-﻿import discord
+﻿from code import interact
+from re import S
+import discord
 import os
 import json
 import database
@@ -7,11 +9,12 @@ import random
 from discord import app_commands, Interaction
 from dotenv import load_dotenv
 from discord.ext import commands
+from functools import wraps
+from enum import Enum, auto
 
 load_dotenv()
 
-# Channels IDs
-GENERAL_TXT_ID = 829417871653601322
+commands = ["rules"]
 
 class MyBot(discord.Client):
     def __init__(self):
@@ -28,14 +31,26 @@ class MyBot(discord.Client):
 
     async def on_guild_join(self, guild: discord.Guild):
         guild_roles = [role.id for role in guild.roles]
-        admin_role = guild.roles[-1]
+        admins = [member.id for member in guild.members
+                  if member.guild_permissions.administrator
+        ]
         default_role = guild.roles[0]
-        self.config_file.instert_data(guild.name, guild.id, guild_roles, admin_role.id, default_role.id)
+        main_channel = guild.system_channel or next(
+            (channel for channel in guild.text_channels  if channel.permissions_for(guild.me).send_messages),
+            None
+        )
+        commands_list = [0]
+        silent_mode = False
+
+        self.config_file.instert_data(guild.name, guild.id, guild_roles, admins.id, default_role.id,
+                                      main_channel.id, commands_list, silent_mode)
+        await main_channel.send(f"Привет, {default_role.mention}!")
 
     async def on_member_join(self, member: discord.Member):
-        channel = member.guild.get_channel(GENERAL_TXT_ID)
-        guild_roles = self.config_file.data[member.guild.name]["roles_id"]
-        default_role = self.config_file.data[member.guild.name]["default_role"]
+        channel_id = self.config_file.get_value(member.guild.name, "channel")
+        default_role = self.config_file.get_value(member.guild.name, "default_role")
+
+        channel = member.guild.get_channel(channel_id)
         role = member.guild.get_role(default_role)
 
         if channel:
@@ -71,91 +86,207 @@ async def roll(
     except ValueError:
         await interaction.response.send_message("Введенные данные не являются числом",
                                                 ephemeral=True)
+def silent_mode(func):
+    @wraps(func)
+    async def wrapper(interaction: discord.Interaction, *args, **kwargs):
+        guild = interaction.guild.name
+        silent_mode = Aphrodite.config_file.get_value(guild, "silent_mode")
+        command_list = Aphrodite.config_file.get_value(guild, "command_list")
+        if (command_list and func.__name__ in command_list) or silent_mode:
+            return await interaction.response.send_message("Включен silent mode, обратитесь к администраторам сервера",
+                                                           ephemeral=True)
+        return await func(interaction, *args, **kwargs)
+    return wrapper
+
+def admin_only(func):
+    @wraps(func)
+    async def wrapper(interaction: discord.Interaction, *args, **kwargs):
+        guild = interaction.guild.name
+        admin_roles = Aphrodite.config_file.get_value(guild, "admin_role")
+        user_roles = [role.id for role in interaction.user.roles]
+        is_admin = interaction.permissions.administrator
+        if any(admin in user_roles for admin in admin_roles) or is_admin:
+            return await func(interaction, *args, **kwargs)
+
+        return await interaction.response.send_message("❌ У вас нет прав использовать эту команду!",
+                                                       ephemeral=True)
+    return wrapper
 
 # Implement a reacton to commands
 @Aphrodite.tree.command(name="rules", description="Отобразить правила сообщества")
+@silent_mode
 async def rules(interaction: discord.Interaction):
-    await interaction.response.send_message("TBD")
+    await interaction.response.send_message("TBD!",
+                                            ephemeral=True)
 
 @Aphrodite.tree.command(name="set_role", description="Заменить роли на выданную")
+@admin_only
 async def set_role(
     interaction: discord.Interaction,
     member: discord.Member,
     role: discord.Role
 ):
-    if role:
-        roles_to_remove = [r for r in member.roles if r != member.guild.default_role]
-        if roles_to_remove:
-            await member.remove_roles(*roles_to_remove)
-    await member.remove_roles()
+    roles_to_remove = [r for r in member.roles if r != member.guild.default_role]
+    if roles_to_remove:
+        await member.remove_roles(*roles_to_remove)
     await member.add_roles(role)
     await interaction.response.send_message(f"✅ {member.mention} теперь с ролью {role.name}",
                                             ephemeral=True)
 
 @Aphrodite.tree.command(name="extend_rights", description="Выдать роли расширенные права на бота")
+@admin_only
 async def extend_rights(
     interaction: discord.Interaction,
     role: discord.Role
 ):
     config_file = Aphrodite.config_file
-    guild = interaction.guild
-    user_roles = [role.id for role in interaction.user.roles]
 
-    if guild.roles[-1].id in user_roles or config_file.is_admin_role(guild.name, user_roles):
-        if config_file.add_admin(guild.name, role.id) == False:
-            await interaction.response.send_message("Роль уже обладает расширенными правами",
-                                                    ephemeral=True)
-        else:
-            await interaction.response.send_message("Роли успешно обновлены",
+    if config_file.add_value(interaction.guild.name, "admin_role", role.id) == False:
+        await interaction.response.send_message("Роль уже обладает расширенными правами",
                                                 ephemeral=True)
     else:
-        await interaction.response.send_message("Недостаточно прав",
+        await interaction.response.send_message(f"Роль {role.name} получила расширенные права",
                                                 ephemeral=True)
 
 @Aphrodite.tree.command(name="take_away_rights", description="Забрать у роли расширенные права на бота")
+@admin_only
 async def take_away_rights(
     interaction: discord.Interaction,
     role: discord.Role
 ):
     config_file = Aphrodite.config_file
-    guild = interaction.guild
-    user_roles = [role.id for role in interaction.user.roles]
 
-    if guild.roles[-1].id in user_roles or config_file.is_admin_role(guild.name, user_roles):
-        if config_file.remove_admin(guild.name, role.id) == False:
-            await interaction.response.send_message("Роль не обладает расширенными правами",
-                                                    ephemeral=True)
-        else:
-            await interaction.response.send_message("Роли успешно обновлены",
+    if config_file.rem_value(interaction.guild.name, "admin_role", role.id) == False:
+        await interaction.response.send_message("Роль не обладает расширенными правами",
                                                 ephemeral=True)
     else:
-        await interaction.response.send_message("Недостаточно прав",
+        await interaction.response.send_message(f"Роль {role.name} лишилась расширенных прав",
                                                 ephemeral=True)
 
 @Aphrodite.tree.command(name="sync_roles", description="Обновить ID ролей на сервере")
+@admin_only
 async def sync_roles(
     interaction: discord.Interaction
 ):
     config_file = Aphrodite.config_file
     guild = interaction.guild
     guild_roles = [guild_role.id for guild_role in guild.roles]
-    user_roles = [role.id for role in interaction.user.roles]
 
-    if guild.roles[-1].id in user_roles or config_file.is_admin_role(guild.name, user_roles):
-        config_file.sync_data(guild.name, guild.id, guild_roles)
-        await interaction.response.send_message("Роли успешно обновлены",
+    config_file.sync_data(interaction.guild.name, guild.id, guild_roles)
+    await interaction.response.send_message("Роли успешно обновлены",
+                                            ephemeral=True)
+
+@Aphrodite.tree.command(name="set_channel", description="Изменить основной канал бота")
+@admin_only
+async def set_channel(
+    interaction: discord.Interaction,
+    channel: discord.TextChannel
+):
+    config_file = Aphrodite.config_file
+
+    if config_file.set_value(interaction.guild.name, "channel", channel.id) == False:
+        await interaction.response.send_message("Канал уже является основным",
                                                 ephemeral=True)
     else:
-        await interaction.response.send_message("Недостаточно прав",
+        await interaction.response.send_message("Канал успешно обновлен",
                                                 ephemeral=True)
 
-"""@Aphrodite.tree.error
+
+@Aphrodite.tree.command(name="set_default_role", description="Изменить роль участников по умолчанию")
+@admin_only
+async def set_channel(
+    interaction: discord.Interaction,
+    role: discord.Role
+):
+    config_file = Aphrodite.config_file
+
+    if config_file.set_value(interaction.guild.name, "default_role", role.id) == False:
+        await interaction.response.send_message("Роль уже выставлена по умолчанию",
+                                                ephemeral=True)
+    else:
+        await interaction.response.send_message("Роль по умолчанию успешно обновлена",
+                                                ephemeral=True)
+
+@Aphrodite.tree.command(name="enable_silent_mode", description="Отключить команды бота")
+@admin_only
+async def enable_silent_mode(
+    interaction: discord.Interaction
+):
+    config_file = Aphrodite.config_file
+    guild = interaction.guild
+
+    if config_file.set_value(interaction.guild.name, "silent_mode", True) == False:
+        await interaction.response.send_message("silent mode уже включен",
+                                                ephemeral=True)
+    else:
+        await interaction.response.send_message("silent mode включен",
+                                                ephemeral=True)
+
+@Aphrodite.tree.command(name="disable_silent_mode", description="Отключить команды бота")
+@admin_only
+async def disable_silent_mode(
+    interaction: discord.Interaction
+):
+    config_file = Aphrodite.config_file
+    guild = interaction.guild
+
+    if config_file.set_value(interaction.guild.name, "silent_mode", False) == False:
+        await interaction.response.send_message("silent mode уже выключен",
+                                                ephemeral=True)
+    else:
+        await interaction.response.send_message("silent mode выключен",
+                                                ephemeral=True)
+
+@Aphrodite.tree.command(name="disable_command", description="Отключить отдельную команду")
+@admin_only
+async def disable_command(
+    interaction: discord.Interaction,
+    command: str
+):
+    config_file = Aphrodite.config_file
+    guild = interaction.guild
+
+    if command in commands:
+        if config_file.add_value(interaction.guild.name, "command_list", command) == False:
+            await interaction.response.send_message("Команда уже отключена",
+                                                    ephemeral=True)
+        else:
+            await interaction.response.send_message("Команда успешно отключена",
+                                                    ephemeral=True)
+    else:
+        await interaction.response.send_message("Указанной команды не существует",
+                                                ephemeral=True)
+
+@Aphrodite.tree.command(name="enable_command", description="Включить отдельную команду")
+@admin_only
+async def enable_command(
+    interaction: discord.Interaction,
+    command: str
+):
+    config_file = Aphrodite.config_file
+    guild = interaction.guild
+
+    if command in commands:
+        if config_file.rem_value(interaction.guild.name, "command_list", command) == False:
+            await interaction.response.send_message("Команда уже включена",
+                                                    ephemeral=True)
+        else:
+            await interaction.response.send_message("Команда успешно включена",
+                                                    ephemeral=True)
+    else:
+        await interaction.response.send_message("Указанной команды не существует",
+                                                ephemeral=True)
+
+
+"""
+@Aphrodite.tree.error
 async def on_app_command_error(
     interaction: discord.Interaction,
     error: app_commands.errors.CheckFailure
 ):
     print(f"ERROR: {error}")
     await interaction.response.send_message("❌ У вас нет прав использовать эту команду!",
+<<<<<<< HEAD
                                             ephemeral=True)"""
 
 Aphrodite.run(os.getenv("DISCORD_TOKEN"))
