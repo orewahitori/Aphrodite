@@ -30,10 +30,10 @@ class GuildDataStorage(JsonStorage):
             channel = []
             command_list = []
             silent_mode = False
-        self.instert_data(guild_name, guild_id, guild_roles, admin_role,
+        self.insert_data(guild_name, guild_id, guild_roles, admin_role,
                           default_role, channel, command_list, silent_mode)
 
-    def instert_data(self, guild_name, guild_id, guild_roles, admin_role,
+    def insert_data(self, guild_name, guild_id, guild_roles, admin_role,
                      default_role, channel, command_list, silent_mode):
         if guild_name in self.data:
             self.data[guild_name]["id"] = guild_id
