@@ -1,14 +1,15 @@
 ﻿import discord
 import os
-import database
 import deepl
 
-from deepl import deepl_client
 from code import interact
-from discord import app_commands, Interaction
 from dotenv import load_dotenv
+from discord import app_commands, Interaction
 from discord.ext import commands
-from functools import wraps
+from deepl import deepl_client
+
+from databases.database import GuildDataStorage
+from cog_services.service_cb import CallbackService
 
 load_dotenv()
 
@@ -20,39 +21,23 @@ class MyBot(commands.Bot):
         intents = discord.Intents.default() # Adding permissions
         intents.message_content = True
         intents.members = True
-        self.config_file = database.GuildDataStorage("guild_config.json")
-        self.bot_commands = ["rules"]
+
+        self.config_file = GuildDataStorage("guild_config.json")
+        self.service_cb = CallbackService(self.config_file)
 
         super().__init__(command_prefix="/", intents=intents)
 
     async def setup_hook(self):
         await self.load_extension("cogs.general")
-        await self.load_extension("cogs.moderation")
+        await self.load_extension("cogs.configuration")
         await self.tree.sync()
 
     async def on_guild_join(self, guild: discord.Guild):
-        guild_roles = [role.id for role in guild.roles]
-        admins = [member.id for member in guild.members
-                  if member.guild_permissions.administrator
-        ]
-        default_role = guild.roles[0]
-        main_channel = guild.system_channel or next(
-            (channel for channel in guild.text_channels  if channel.permissions_for(guild.me).send_messages),
-            None
-        )
-        commands_list = []
-        silent_mode = False
-
-        self.config_file.insert_data(guild.name, guild.id, guild_roles, admins, default_role.id,
-                                      main_channel.id, commands_list, silent_mode)
-        await main_channel.send(f"Привет, {default_role.mention}!")
+        channel, role = self.service_cb.on_guild_join(guild)
+        await channel.send("Привет!")
 
     async def on_member_join(self, member: discord.Member):
-        channel_id = self.config_file.get_value(member.guild.name, "channel")
-        default_role = self.config_file.get_value(member.guild.name, "default_role")
-
-        channel = member.guild.get_channel(channel_id)
-        role = member.guild.get_role(default_role)
+        channel, role = self.service_cb.on_member_join(member)
 
         if channel:
             await channel.send(f"Привет, {member.mention}!")
