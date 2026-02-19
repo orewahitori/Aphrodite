@@ -1,8 +1,10 @@
 ﻿import discord
 
 class CallbackService:
-    def __init__(self, config_file):
+    def __init__(self, config_file, log):
         self.config_file = config_file
+        self.log = log
+        self.log.write("INFO", "service_cb - __init__", "CallbackService initialized")
 
 
     def on_guild_join(

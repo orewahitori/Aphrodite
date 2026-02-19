@@ -10,6 +10,7 @@ from deepl import deepl_client
 
 from databases.database import GuildDataStorage
 from cog_services.service_cb import CallbackService
+from log_producer.log import LogService
 
 load_dotenv()
 
@@ -22,8 +23,12 @@ class MyBot(commands.Bot):
         intents.message_content = True
         intents.members = True
 
-        self.config_file = GuildDataStorage("guild_config.json")
-        self.service_cb = CallbackService(self.config_file)
+        self.log = LogService()
+        self.config_file = GuildDataStorage("guild_config.json", self.log)
+        self.service_cb = CallbackService(self.config_file, self.log)
+        
+        self.log.write("INFO", "Aphrodite - __init__",
+                       "BOT STARTUP. Basic services initialized")
 
         super().__init__(command_prefix="/", intents=intents)
 
@@ -32,8 +37,14 @@ class MyBot(commands.Bot):
         await self.load_extension("cogs.configuration")
         await self.tree.sync()
 
+        self.log.write("INFO", "Aphrodite - setup hook",
+                       "BOT STARTUP. All cogs synced")
+
     async def on_guild_join(self, guild: discord.Guild):
         channel, role = self.service_cb.on_guild_join(guild)
+
+        self.log.write("INFO", "Aphrodite - on_guild_join",
+                       f"New {guild} guild joined")
         await channel.send("Привет!")
 
     async def on_member_join(self, member: discord.Member):
@@ -42,11 +53,13 @@ class MyBot(commands.Bot):
         if channel:
             await channel.send(f"Привет, {member.mention}!")
         else:
-            print(f"ERROR: on_member_join - Failed to connect to {channel} channel")
+            self.log.write("ERROR", "Aphrodite - on_member_join",
+                           f"Failed to connect {channel} channel")
         if role:
             await member.add_roles(role)
         else:
-            print(f"ERROR: on_member_join - Failed to add {role} role to {member}")
+            self.log.write("ERROR", "Aphrodite - on_member_join",
+                           f"Failed to add {role} role to {member}")
 
 Aphrodite = MyBot()
 
@@ -74,5 +87,6 @@ async def on_app_command_error(
     print(f"ERROR: {error}")
     await interaction.response.send_message("❌ У вас нет прав использовать эту команду!",
                                             ephemeral=True)"""
+
 
 Aphrodite.run(os.getenv("DISCORD_TOKEN"))

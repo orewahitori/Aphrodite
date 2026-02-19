@@ -2,21 +2,28 @@
 from pathlib import Path
 
 class JsonStorage:
-    def __init__(self, path):
+    def __init__(self, path, log):
         self.path = Path(path)
         if not self.path.exists():
             self.path.write_text("{}", encoding="utf-8")
+            self.log = log
+            self.log.write("INFO", "database - __init__",
+                           "No DB was found, creating new one")
+
         self.data = self.load()
+
 
     def load(self):
         with open(self.path, "r", encoding="utf-8") as f:
             return json.load(f)
 
-class GuildDataStorage(JsonStorage):
-    def save_data(self):
+
+    def update(self):
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=4, ensure_ascii=False)
 
+
+class GuildDataStorage(JsonStorage):
     def sync_data(self, guild_name, guild_id, guild_roles): # Sync case only
         if guild_name in self.data:
             admin_role = self.data[guild_name]["admin_role"]
@@ -25,6 +32,8 @@ class GuildDataStorage(JsonStorage):
             command_list = self.data[guild_name]["command_list"]
             silent_mode = self.data[guild_name]["silent_mode"]
         else:
+            self.log.write("WARN", "database - sync_data",
+                           f"No {guild_name} found, updating with empty values to avoid faults")
             admin_role = []
             default_role = []
             channel = []
@@ -32,6 +41,7 @@ class GuildDataStorage(JsonStorage):
             silent_mode = False
         self.insert_data(guild_name, guild_id, guild_roles, admin_role,
                           default_role, channel, command_list, silent_mode)
+
 
     def insert_data(self, guild_name, guild_id, guild_roles, admin_role,
                      default_role, channel, command_list, silent_mode):
@@ -44,6 +54,8 @@ class GuildDataStorage(JsonStorage):
             self.data[guild_name]["command_list"] = command_list
             self.data[guild_name]["silent_mode"] = silent_mode
         else:
+            self.log.write("INFO", "database - insert_data",
+                           f"No {guild_name} found, inserting new entry")
             self.data[guild_name] = {
                 "id": guild_id,
                 "roles_id": guild_roles,
@@ -53,8 +65,8 @@ class GuildDataStorage(JsonStorage):
                 "command_list": command_list,
                 "silent_mode": silent_mode
             }
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, indent=4, ensure_ascii=False)
+        self.update()
+
 
     def is_admin_role(self, guild_name, roles):
         for role in roles:
@@ -62,14 +74,15 @@ class GuildDataStorage(JsonStorage):
                 return True
         return False
 
+
     def add_value(self, guild_name, key, value):
         values = self.data[guild_name][key]
         if value in values:
             return False
         values.append(value)
         self.data[guild_name][key] = values
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, indent=4, ensure_ascii=False)
+        self.update()
+
 
     def rem_value(self, guild_name, key, value):
         values = self.data[guild_name][key]
@@ -77,19 +90,21 @@ class GuildDataStorage(JsonStorage):
             return False
         values.remove(value)
         self.data[guild_name][key] = values
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, indent=4, ensure_ascii=False)
+        self.update()
 
-    def set_value(self, guild_name, key, channel):
-        current_channel = self.data[guild_name][key]
-        if not current_channel:
-            print(f"ERROR set_value, {key} value was not set for {guild_name}!")
-        if current_channel == channel:
+
+    def set_value(self, guild_name, key, value):
+        current_value = self.data[guild_name][key]
+        if not current_value:
+            self.log.write("WARN", "database - set_value",
+                           f"{key} value was not set for {guild_name}")
+        if current_value == value:
             return False
-        self.data[guild_name][key] = channel
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, indent=4, ensure_ascii=False)
+
+        self.data[guild_name][key] = value
+        self.update()
         return True
+
 
     def get_value(self, guild_name, key):
         if self.data[guild_name][key]:
