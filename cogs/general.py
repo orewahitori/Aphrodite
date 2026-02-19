@@ -11,6 +11,7 @@ class General(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.service_gen = GeneralService(bot.config_file)
+        self.bot.log.write("INFO", "general - __init__", "General initialized")
 
 
     def silent_mode(func):

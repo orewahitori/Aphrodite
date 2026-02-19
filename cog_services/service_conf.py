@@ -1,9 +1,11 @@
 ﻿import discord
 
 class ConfService:
-    def __init__(self, config_file):
+    def __init__(self, config_file, log):
         self.config_file = config_file
+        self.log = log
         self.bot_commands = ["rules", "avatar", "roll"]
+        self.log.write("INFO", "service_conf - __init__", "ConfService initialized")
 
 
     def admin_only_wrapper(
@@ -21,7 +23,7 @@ class ConfService:
             return False
 
 
-    async def roles_to_remove(
+    def roles_to_remove(
         self,
         member: discord.Member,
         role: discord.Role
