@@ -30,6 +30,7 @@ class MyBot(commands.Bot):
     async def setup_hook(self):
         await self.load_extension("cogs.general")
         await self.load_extension("cogs.configuration")
+        await self.load_extension("cogs.moderation")
         await self.tree.sync()
 
     async def on_guild_join(self, guild: discord.Guild):
